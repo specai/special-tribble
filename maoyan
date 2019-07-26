@@ -1,0 +1,163 @@
+import requests
+import pymssql
+import json
+import csv
+import datetime
+import random
+import time
+
+class maoyan:
+    """猫眼专业版手机APP影院排名、影院信息和影片票房模块爬虫开发"""
+    
+    def __init__(self):
+        """脚本初始化，自定义属性"""
+        
+        self.sql={'cinema':'insert into [影院排名] values (%s,%s,%s,%s,%d,%d,%d)',
+        'movie':'insert into [影片票房] values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+        'background':'',
+        }
+        self.url={
+        'cinema':"https://box.maoyan.com/api/cinema/cinemaBox/filter/list.json?limit=700&date={date}&offset=0&typeId=0",
+        'movie':"https://box.maoyan.com/api/cinema/cinemaBox/movie/box/list.json?date={date}&cinemaId={cinemaid}",
+        'background':"https://box.maoyan.com/api/cinema/cinema/{cinemaid}/info.json",
+        'city':'https://box.maoyan.com/vista/api/city/all.json',
+        }
+        self.parse_type={
+        'cinema':self.parse_response_cinema,
+        'movie':self.parse_response_movie,
+        'background':self.parse_response_background,
+        'city':self.parse_response_city,  
+        }
+     
+    def db_execute(self,rows,sql):
+        """数据库执行读写操作"""
+        
+        with open(r'C:\Users\Administrator\config-test.txt','r') as f:
+            server=f.readline().strip()
+            user=f.readline().strip()
+            password=f.readline().strip()
+            database=f.readline().strip()      
+        with pymssql.connect(server =server,user = user,password = password,
+        database =database,autocommit = True) as conn:
+            with conn.cursor(as_dict=False) as cursor:
+                cursor.execute(sql)                
+                rows = cursor.rowcount
+                print('影响行数',rows)
+                    
+    def db_executemany(self,rows,sql):
+        """数据库批量执行操作"""
+        
+        with open(r'C:\Users\Administrator\config-test.txt','r') as f:
+            server=f.readline().strip()
+            user=f.readline().strip()
+            password=f.readline().strip()
+            database=f.readline().strip()      
+        with pymssql.connect(server =server,user = user,password = password,
+        database =database,autocommit = True) as conn:
+            with conn.cursor(as_dict=False) as cursor:
+                try:
+                    cursor.executemany(sql,rows)                
+                    rows = cursor.rowcount
+                    print('影响行数',rows)
+                except:
+                    print('insert null')
+                           
+    def get_date_list(self,date_start = None,date_end = None):
+        """获取一段日期列表"""
+
+        if date_start is None:
+            date_start = '20170101'
+        if date_end is None:
+            date_end = datetime.datetime.now().strftime('%Y%m%d') 
+        date_start=datetime.datetime.strptime(date_start,'%Y%m%d')
+        date_end=datetime.datetime.strptime(date_end,'%Y%m%d')
+        date_list = []
+        date_list.append(date_start.strftime('%Y%m%d'))
+        while date_start < date_end:
+            date_start+=datetime.timedelta(days=+1)# 日期加一天
+            date_list.append(date_start.strftime('%Y%m%d'))# 日期存入列表
+        return date_list
+    
+    def read_from_txt(self,filename):
+        """读取txt文件"""
+
+        with open(f'{filename}.txt','r')as f:
+            for row in f.readlines():
+                line=row.strip('\n')
+                yield line
+
+    def crawl_web(self,url):
+        """机器人爬虫爬取链接"""
+
+        headers = {'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 8.0.0; ALP-AL00 Build/HUAWEIALP-AL00)'}
+        Response=requests.get(url,headers=headers)
+        json_dict=json.loads(Response.text)
+        return json_dict    
+
+    def parse_response_cinema(self,json_dict,args):
+        """解析影院排名json对象"""
+
+        alls=json_dict['data']['all']
+        lists=json_dict['data']['list']
+        rows=[(args['date'],'all',alls['cinemaName'],alls['boxInfo'],alls['viewInfo'],alls['avgShowView'],alls['avgViewBox'])]
+        for row in lists:
+            rows.append((args['date'],row['cinemaId'],row['cinemaName'],row['boxInfo'],row['viewInfo'],row['avgShowView'],row['avgViewBox']))
+        return rows
+
+    def parse_response_movie(self,json_dict,args):
+        """解析影片票房json对象"""
+        try:
+            lists=json_dict['data']['list']
+            rows=[]
+            for row in lists:
+                rows.append((args['date'],args['cinemaid'],args['cinemaname'],row['movieName'],row['releaseInfo'],
+                row['boxInfo'],row['box'],row['viewInfo'],row['showInfo'],row['avgShowView'],row['avgViewBox'],row['avgSeatView'],
+                row['boxRate'],row['showRate'],row['seatRate'],row['onlineBoxInfo'],row['onlineBoxRate'],
+                row['onlineViewInfo'],row['onlineViewRate'],row['sumBoxInfo']))
+            return rows
+        except:
+            print('movie is null')
+        
+    def parse_response_background(self,json_dict,args):
+        """解析影院信息json对象"""
+    
+        lists=json_dict['data']
+        rows=[(lists['cityId'],lists['cinemaId'],lists['cinemaName'],lists['address'],lists['telephone'],lists['hallNum']
+               ,lists['seatsNum'],lists['imaxNum'],lists['latitude'],lists['longitude'])]    
+        return rows
+    
+    def parse_response_city():
+        """解析城市信息json对象"""
+        
+        pass
+    
+    def spiders(self,sp_name,**args):        
+        """一个完成的爬虫流程处理，从url为出发点，到数据库存储。"""
+                
+        arg=args['arg']
+        url=self.url[sp_name].format(**arg)
+        print(url)
+        json_dict=self.crawl_web(url)
+        rows=self.parse_type[sp_name](json_dict,arg)
+        self.db_executemany(rows,self.sql[sp_name]) 
+        return rows
+
+    def start(self):
+        """启动爬虫应用程序"""
+
+        background_set=set()
+        for date in Maoyan.get_date_list('20190502','20190601'):
+            print(date)
+            rows=self.spiders('cinema',arg={'date':date})
+#             for cinemaid,cinemaname in self.read_from_txt():
+            for _,cinemaid,cinemaname,*_ in rows[1:]:
+                if cinemaid not in background_set:           
+                    self.spiders('background',arg={'cinemaid':cinemaid})
+                    background_set.add(cinemaid)            
+                self.spiders('movie',arg={'cinemaid':cinemaid,'cinemaname':cinemaname,'date':date})
+                time.sleep(random.randint(1,5))
+        print('ALL DONE!!!')
+    
+if __name__=='__main__':
+    Maoyan=maoyan()
+    Maoyan.start()
