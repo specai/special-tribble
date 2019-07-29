@@ -5,7 +5,7 @@ import csv
 import datetime
 import random
 import time
-
+ 
 class maoyan:
     """猫眼专业版手机APP影院排名、影院信息和影片票房模块爬虫开发"""
     
@@ -14,7 +14,7 @@ class maoyan:
         
         self.sql={'cinema':'insert into [影院排名] values (%s,%s,%s,%s,%d,%d,%d)',
         'movie':'insert into [影片票房] values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-        'background':'',
+        'background':'insert into [影院信息] values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
         }
         self.url={
         'cinema':"https://box.maoyan.com/api/cinema/cinemaBox/filter/list.json?limit=700&date={date}&offset=0&typeId=0",
@@ -84,7 +84,7 @@ class maoyan:
         with open(f'{filename}.txt','r')as f:
             for row in f.readlines():
                 line=row.strip('\n')
-                yield line
+                yield line               
 
     def crawl_web(self,url):
         """机器人爬虫爬取链接"""
@@ -146,13 +146,14 @@ class maoyan:
         """启动爬虫应用程序"""
 
         background_set=set()
-        for date in Maoyan.get_date_list('20190502','20190601'):
+        for date in Maoyan.get_date_list('20190502','20190502'):
             print(date)
             rows=self.spiders('cinema',arg={'date':date})
 #             for cinemaid,cinemaname in self.read_from_txt():
             for _,cinemaid,cinemaname,*_ in rows[1:]:
                 if cinemaid not in background_set:           
-                    self.spiders('background',arg={'cinemaid':cinemaid})
+                    rows=self.spiders('background',arg={'cinemaid':cinemaid})
+                    print(rows)
                     background_set.add(cinemaid)            
                 self.spiders('movie',arg={'cinemaid':cinemaid,'cinemaname':cinemaname,'date':date})
                 time.sleep(random.randint(1,5))
