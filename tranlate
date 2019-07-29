@@ -1,0 +1,33 @@
+import pymssql
+def read_from_txt(filename):
+        """读取txt文件"""
+
+        with open(f'C:/Users/Administrator/Documents/{filename}.txt','r')as f:
+            for row in f.readlines():
+                line=row.strip('\n')
+                yield line
+
+def db_executemany(rows,sql):
+        """数据库批量执行操作"""
+        
+        with open(r'C:\Users\Administrator\config.txt','r') as f:
+            server=f.readline().strip()
+            user=f.readline().strip()
+            password=f.readline().strip()
+            database=f.readline().strip()      
+        with pymssql.connect(server =server,user = user,password = password,
+        database =database,autocommit = True) as conn:
+            with conn.cursor(as_dict=False) as cursor:
+                cursor.executemany(sql,rows)                
+                rows = cursor.rowcount
+                print('影响行数',rows)
+
+rows=[]
+for row in read_from_txt('2'):  
+    r=tuple(row.split('\t'))
+#     print(r)
+    rows.append(r)
+print(len(rows[1:]))
+sql='insert into [影片票房] values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
+sql2='insert into [影院排名] values (%s,%s,%s,%s,%d,%d,%d)'
+db_executemany(rows[1:],sql2)    
