@@ -159,6 +159,16 @@ class maoyan:
                 time.sleep(random.randint(1,5))
         print('ALL DONE!!!')
     
+    def lose_url(self):
+        """补充漏掉的url"""
+        
+        for row in self.read_from_txt('C:/Users/Administrator/Documents/3'):  
+            date,cinemaid,cinemaname=row.split('\t')
+            self.spiders('movie',arg={'cinemaid':cinemaid,'cinemaname':cinemaname,'date':date})
+            time.sleep(random.randint(1,3))
+        print('ALL DONE!!!')
+        
+    
 if __name__=='__main__':
     Maoyan=maoyan()
-    Maoyan.start()
+    Maoyan.lose_url()
