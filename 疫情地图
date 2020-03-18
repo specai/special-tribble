@@ -1,0 +1,29 @@
+import json
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import matplotlib.pyplot as plt
+
+header={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+url='https://voice.baidu.com/act/newpneumonia/newpneumonia/?from=osari_pc_3#tab0'
+response=requests.get(url,headers=header)
+soup = BeautifulSoup(response.text)
+cook=json.loads(soup.find_all("script", limit=12)[11].string)
+result=cook['component'][0]
+china_provs=result['caseList'] #省份情况
+dict_prv={}
+for china_prov in china_provs:
+    dict_prv[china_prov['area']]={'累计确诊':int(china_prov['confirmed']),'新增确诊':int(china_prov['confirmedRelative'])
+,'累计治愈':int(china_prov['crued']),'剩余病例':int(china_prov['curConfirm']),'昨天减少':int(china_prov['curConfirmRelative'])
+,'累计死亡':china_prov['died'],'新增死亡':int(china_prov['diedRelative']),'重症减少？':int(china_prov['icuDisable'])}         
+data = pd.DataFrame(dict_prv).T
+print(data.sort_values(by = '剩余病例',ascending=False))
+
+forei_provs=result['caseOutsideList'] #外国情况
+dict_for={}
+for forei_prov in forei_provs:
+    dict_for[forei_prov['area']]={'累计确诊':int(forei_prov['confirmed'])  ,'新增确诊':forei_prov.setdefault('confirmedRelative',0)
+,'累计治愈':forei_prov['crued'],'剩余病例':int(forei_prov['curConfirm'])
+,'累计死亡':forei_prov['died'],'重症减少？':int(forei_prov['icuDisable'])}         
+data_for = pd.DataFrame(dict_for).T
+# print(data_for.sort_values(by = '剩余病例',ascending=False))
