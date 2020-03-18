@@ -1,0 +1,94 @@
+# -*- coding: UTF-8 –*-
+import json
+import requests
+import pymssql
+
+class baidu_migrate:
+
+    """
+    百度地图慧眼|百度迁徙 数据抓取
+    迁入来源地
+    迁出来源地
+    城市出行强度
+    """
+
+    def __init__(self):
+        
+        """类初始化"""
+        
+        self.date='20200316'
+    
+    def query(self,sql):
+        
+        """查询数据库"""
+        
+        with open(r'C:\Users\Administrator\config-new.txt','r') as f:
+            server=f.readline().strip()
+            user=f.readline().strip()
+            password=f.readline().strip()
+            database=f.readline().strip()      
+        with pymssql.connect(server =server,user = user,password = password,
+        database =database,autocommit = True) as conn:
+            with conn.cursor(as_dict=False) as cursor:
+                cursor.execute(sql)                
+                rows = cursor.fetchall()
+        return rows
+        
+                
+    def execute(self,sql):
+        
+        """数据库操作"""
+        
+        with open(r'C:\Users\Administrator\config-new.txt','r') as f:
+            server=f.readline().strip()
+            user=f.readline().strip()
+            password=f.readline().strip()
+            database=f.readline().strip()      
+        with pymssql.connect(server =server,user = user,password = password,
+        database =database,autocommit = True) as conn:
+            with conn.cursor(as_dict=False) as cursor:
+                cursor.execute(sql)                
+                rows = cursor.rowcount
+                print('影响行数',rows)
+
+    def read_config(self):
+        
+        """读取城市名称与城市编码映射关系文件"""
+        
+        with open('city_code.txt','r',encoding='utf8') as f:
+            txt=f.readlines()
+            for i in txt:
+                city,id=i.split()
+                yield city,id
+                
+    def crawler_internal(self,city,id,date):
+
+        """城市出行强度"""
+
+        header={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        url=f'http://huiyan.baidu.com/migration/internalflowhistory.jsonp?dt=city&id={id}&date={date}'
+        response=requests.get(url,headers=header)
+        raw=response.text[3:-1]
+        cook=json.loads(raw)['data']['list']
+        for k in sorted(cook):
+            print(city,id,k,cook[k])
+            sql='''insert into [百度迁徙] values('{city}','{id}','{date}',{strength})
+            '''.format(**{'city':city,'id':id,'date':k,'strength':cook[k]})
+#             print(sql)
+            self.execute(sql)
+        print(f'{city} is done')
+        
+    def main(self):
+
+        """爬虫主程序入口"""
+        
+        txt=self.read_config()
+        self.execute('truncate table [百度迁徙]')
+        for city,id in txt:
+            self.crawler_internal(city,id,self.date)
+
+if __name__=='__main__':  
+    myclass=baidu_migrate()
+    myclass.main()
+        
+    
